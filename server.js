@@ -53,8 +53,10 @@ app.get("/local/*", (req, res) => {
       }
 
       if (stats.isDirectory()) {
-        // If the requested path is a directory, send the directory contents as JSON or HTML based on the 'content' parameter
+        // If the requested path is a directory, send the directory contents as JSON or HTML 
+        // based on the 'content' parameter
         const contentParam = req.query.content;
+        const dirPath = filePath;
 
         fs.readdir(filePath, (err, files) => {
           if (err) {
@@ -63,16 +65,28 @@ app.get("/local/*", (req, res) => {
             return;
           }
 
+          // Generate directory listing
+        const directoryListing = files.map(file => {
+            const filePath = path.join(dirPath, file);
+            const stats = fs.statSync(filePath);
+            const isDirectory = stats.isDirectory();
+            const fileSize = stats.size;
+            const fileDate = stats.mtime;
+        
+            return {
+            name: file,
+            type: isDirectory ? 'directory' : 'file',
+            size: fileSize,
+            date: fileDate,
+            };
+        });
+
           if (contentParam === "json") {
             // Send directory contents as JSON
-            res.json(files);
+            res.json(directoryListing);
           } else {
             // Send directory contents as HTML
-            const html = generateDirectoryListing(
-              filePath,
-              files,
-              requestedPath
-            );
+            const html = generateHtml(directoryListing, req.path);
             res.send(html);
           }
         });
@@ -87,7 +101,8 @@ app.get("/local/*", (req, res) => {
 
           // Set the appropriate content type based on file extension
           const ext = path.extname(filePath);
-          const textFileExtensions = ['.txt', '.lst', '.sas', '.R', '.cfg', '.job', '.mnf', '.log', '.Rlog'];
+          const textFileExtensions = ['.txt', '.lst', '.sas', '.R', '.cfg', 
+            '.job', '.mnf', '.log', '.Rlog'];
           let contentType = "application/octet-stream";
           if (ext === ".html") {
             contentType = "text/html";
@@ -131,54 +146,57 @@ app.get("/local/*", (req, res) => {
   });
 });
 
-// Function to generate HTML for the directory listing
-function generateDirectoryListing(directoryPath, files, requestedPath) {
-  const parentPath = path.dirname(requestedPath);
-
-  let html = `
-    <html>
-    <head>
-      <title>Directory Listing</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-        }
-        h1 {
-          margin-bottom: 20px;
-        }
-        ul {
-          list-style-type: none;
-          padding-left: 0;
-        }
-        li {
-          margin-bottom: 5px;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>Directory Listing</h1>
-      <ul>
-        <li><a href="/local/${parentPath}">..</a></li>
-  `;
-
-  // Generate links for each file and subfolder
-  files.forEach((file) => {
-    const fileLink = path.join(requestedPath, file);
-    const fileStats = fs.statSync(path.join(directoryPath, file));
-    const isDirectory = fileStats.isDirectory();
-    const linkText = isDirectory ? `${file}/` : file;
-    const link = `<a href="/local/${fileLink}">${linkText}</a>`;
-    html += `<li>${link}</li>`;
-  });
-
-  html += `
-      </ul>
-    </body>
-    </html>
-  `;
-
-  return html;
-}
+function formatDate(date) {
+    // const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    // return date.toLocaleDateString(undefined, options);
+    const isoString = date.toISOString().replace("T", " ");
+    return isoString.slice(0, isoString.length - 5) + 'Z';
+  }
+  
+function formatFileSize(size) {
+    // if (size === 0) {
+    //   return '0.00 b&nbsp;';
+    // }
+  
+    // const units = ['b&nbsp;', 'Kb', 'Mb', 'Gb', 'Tb'];
+    // const k = 1024;
+    // const i = Math.floor(Math.log(size) / Math.log(k));
+  
+    // return `${(size / Math.pow(k, i)).toFixed(2)} ${units[i]}`;
+    return `${size}`;
+  }
+  
+  function generateHtml(directoryListing, currentPath) {
+    const parentPath = currentPath.split('/').slice(0, -1).join('/');
+    const parentLink = `<a href="${parentPath}">..</a>`;
+  
+    const header = `<h3>Directory Listing: ${currentPath}</h3>`;
+    const parentLinkHtml = `<tr><td>${parentLink}</td></tr>`;
+  
+    const itemsHtml = directoryListing.map(item => {
+        console.log(item.name);
+        const itemPath = `${currentPath}/${encodeURIComponent(item.name)}`;
+        console.log(itemPath);
+        const itemLink = `<a href="${itemPath}">${item.name + (item.type === 'directory' ? '/' : '')}</a>`;
+        const itemType = `<span>${item.type}</span>`;
+        const itemSize = `<span>${formatFileSize(item.size)}</span>`;
+        const itemDate = `<span>${formatDate(item.date)}</span>`;
+  
+        return `<tr><td>${itemLink}</td>`+
+            `<td class="no-wrap" style="text-align: right;">${itemSize}</td>`+
+            `<td class="no-wrap">${itemDate}</td></tr>`;
+    }).join('');
+  
+    return `<html><body style="white-space: pre;font-family: 'Courier New', Courier, monospace">` +
+        `<style>
+            .no-wrap {
+                white-space: nowrap;
+                padding-left: 1em;
+            }
+        </style>` +
+        `${header}${parentLinkHtml}<table>${itemsHtml}</table></body></html>`;
+  }
+  
 
 // Start the server
 app.listen(port, () => {
