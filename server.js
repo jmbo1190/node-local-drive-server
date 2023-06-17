@@ -193,6 +193,9 @@ function formatFileSize(size) {
                 white-space: nowrap;
                 padding-left: 1em;
             }
+            a {
+                text-decoration: none;
+              }
         </style>` +
         `${header}${parentLinkHtml}<table>${itemsHtml}</table></body></html>`;
   }
