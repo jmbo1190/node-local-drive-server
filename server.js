@@ -1,4 +1,5 @@
 const express = require("express");
+const os = require('os');
 const fs = require("fs");
 const path = require("path");
 const isTextOrBinary = require('istextorbinary');
@@ -11,11 +12,23 @@ const port = 3000;
 const fsRoot = "/";
 
 // Array of root folders to serve
-const rootFolders = [
-  "Users",
+const rootFolders = [];
+console.log(path.posix.normalize(os.homedir()));
+let homeDir = os.homedir();
+homeDir = homeDir.split(":\\").length === 2 ? homeDir.split(":\\")[1] : homeDir
+homeDir = homeDir.replaceAll("\\", "/");
+console.log(homeDir);
+testFolders =
+[ "Users",
   "Applications",
+  "Temp",
   // Add more folders here as needed
 ];
+testFolders.push(homeDir);
+testFolders.forEach(f => {
+  if (fs.existsSync(path.join(fsRoot, f))) rootFolders.push(f)
+})
+console.log("rootFolders:", rootFolders);
 
 // Define the route
 app.get("/local/*", (req, res) => {
@@ -68,18 +81,21 @@ app.get("/local/*", (req, res) => {
           // Generate directory listing
         const directoryListing = files.map(file => {
             const filePath = path.join(dirPath, file);
-            const stats = fs.statSync(filePath);
-            const isDirectory = stats.isDirectory();
-            const fileSize = stats.size;
-            const fileDate = stats.mtime;
-        
-            return {
-            name: file,
-            type: isDirectory ? 'directory' : 'file',
-            size: fileSize,
-            date: fileDate,
-            };
-        });
+            if (fs.existsSync(filePath)) {
+              const stats = fs.statSync(filePath);
+              const isDirectory = stats.isDirectory();
+              const fileSize = stats.size;
+              const fileDate = stats.mtime;
+          
+              return {
+              name: file,
+              type: isDirectory ? 'directory' : 'file',
+              size: fileSize,
+              date: fileDate,
+              };
+            }
+            return null;            
+        }).filter(item => item !== null);
 
           if (contentParam === "json") {
             // Send directory contents as JSON
@@ -144,6 +160,23 @@ app.get("/local/*", (req, res) => {
       }
     });
   });
+});
+
+// Catch-all middleware for non-defined routes
+app.use((req, res) => {
+  const requestedRoute = req.originalUrl;
+  if (rootFolders.length === 0) {
+    res.status(404).json({ error: `Route not found: ${requestedRoute}` });
+  } else {
+    const htmlContent = `
+    <h1>Route not found: ${requestedRoute}</h1>
+    You may try
+    <ul>
+    ${rootFolders.map(f => "<li><a href=\"/local/"+f+"\">"+f+"</a></li>").join("\n")}
+    </ul>
+    `;
+    res.status(404).send(htmlContent);
+  }
 });
 
 function formatDate(date) {
