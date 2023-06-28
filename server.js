@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require('cors');
 const os = require('os');
 const fs = require("fs");
 const path = require("path");
@@ -6,7 +7,32 @@ const isTextOrBinary = require('istextorbinary');
 
 
 const app = express();
-const port = 3000;
+
+const allowedOrigins = ['https://xarprod.ondemand.sas.com', 'https://xartest.ondemand.sas.com'];
+const allowedLocalPortRange = [3000, 4000]; // Modify the port range as per your requirement
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    let port;
+    if (origin) port = parseInt(origin.split(':')[2], 10);
+    console.log("Checking if allowed origin:", origin);
+    // Check if the origin is in the allowed origins list
+    if (!origin) {
+      callback(null, true);
+    } else if (origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) 
+                && allowedLocalPortRange[0] <= port && allowedLocalPortRange[1] >= port  ) {
+      callback(null, true);
+    } else if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: origin='+origin));
+    }
+  }
+};
+
+app.use(cors(corsOptions));
+
+const port = 3050;
 
 // Root of local filesystem to serve
 const fsRoot = "/";
