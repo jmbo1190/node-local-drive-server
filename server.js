@@ -41,6 +41,24 @@ const fsRoot = "/";
 const rootFolders = [];
 console.log(path.posix.normalize(os.homedir()));
 let homeDir = os.homedir();
+// If defined, add lsafLocalRootFolder to the list of local Root Folders
+let lsafDir = null;
+let lsafSyncJson = null;
+if (fs.existsSync(path.join(homeDir, "lsafSync.json"))) {
+  lsafSyncJson = path.join(homeDir, "lsafSync.json")
+} else if (fs.existsSync(path.join(homeDir, ".lsaf", "lsafSync.json"))) {
+  lsafSyncJson = path.join(homeDir, ".lsaf", "lsafSync.json")
+}
+if (lsafSyncJson) {
+  lsafSync = require(lsafSyncJson);
+  console.log('lsafSync:', lsafSync);
+  if (lsafSync.localRootFolder) lsafDir = lsafSync.localRootFolder;
+  if (lsafDir) {
+    lsafDir = lsafDir.replaceAll("\\", "/");
+    lsafDir = lsafDir.split(":/").length === 2 ? lsafDir.split(":/")[1] : lsafDir
+    console.log('lsafDir:', lsafDir);
+  }
+}
 homeDir = homeDir.split(":\\").length === 2 ? homeDir.split(":\\")[1] : homeDir
 homeDir = homeDir.replaceAll("\\", "/");
 console.log(homeDir);
@@ -51,12 +69,13 @@ testFolders =
   // Add more folders here as needed
 ];
 testFolders.push(homeDir);
+if (lsafDir) testFolders.push(lsafDir);
 testFolders.forEach(f => {
   if (fs.existsSync(path.join(fsRoot, f))) rootFolders.push(f)
 })
 console.log("rootFolders:", rootFolders);
 
-// Define the route
+// Define the route for local filesystem access
 app.get("/local/*", (req, res) => {
   // Extract the file path from the URL
   const requestedPath = req.params[0];
